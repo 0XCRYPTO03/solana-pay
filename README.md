@@ -25,6 +25,9 @@ The Solana blockchain confirms transactions in less than a second and costs on a
 
 Use the [`@solana/pay` JavaScript SDK](https://github.com/solana-labs/solana-pay/tree/master/core) to start accepting payments in your app today.
 
+### Accept payments in your Shopify store
+Install the Solana Pay Shopify Payment App to start accepting payments in your Shopify store today. [You can learn more here.](shopify)
+
 ### Accept payments in person
 
 Run the open-source [Solana Pay Point of Sale app](https://github.com/solana-labs/solana-pay/tree/master/examples/point-of-sale) to start accepting payments in-person.
