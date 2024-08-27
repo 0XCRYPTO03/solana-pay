@@ -1,66 +1,83 @@
-import { PublicKey } from '@solana/web3.js';
-import BigNumber from 'bignumber.js';
-import { URL_PROTOCOL } from './constants';
+import { SOLANA_PROTOCOL } from './constants.js';
+import type { Amount, Label, Memo, Message, Recipient, References, SPLToken } from './types.js';
 
 /**
- * Optional query parameters to encode in a Solana Pay URL.
+ * Fields of a Solana Pay transaction request URL.
  */
-export interface EncodeURLParams {
-    /** The amount of SOL or SPL token that should be transferred. It  is always interpreted to be a decimal number of "user" units */
-    amount?: BigNumber;
-    /** The mint address of the SPL token */
-    splToken?: PublicKey;
-    /** An array of public keys used to identify the transaction */
-    reference?: PublicKey | PublicKey[];
-    /** A label to be used by the wallet provider to identify the transaction */
-    label?: string;
-    /** A message to be used by the wallet provider to identify the transaction */
-    message?: string;
-    /** Creates an additional instruction for the [Memo Program](https://spl.solana.com/memo) */
-    memo?: string;
+export interface TransactionRequestURLFields {
+    /** `link` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#link). */
+    link: URL;
+    /** `label` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#label-1). */
+    label?: Label;
+    /** `message` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#message-1).  */
+    message?: Message;
 }
 
 /**
- * Required and optional URL components to encode in a Solana Pay URL.
+ * Fields of a Solana Pay transfer request URL.
  */
-export interface EncodeURLComponents extends EncodeURLParams {
-    /** The address the payment should be made to. It **must** be a native SOL address. */
-    recipient: PublicKey;
+export interface TransferRequestURLFields {
+    /** `recipient` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#recipient). */
+    recipient: Recipient;
+    /** `amount` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#amount). */
+    amount?: Amount;
+    /** `spl-token` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#spl-token). */
+    splToken?: SPLToken;
+    /** `reference` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#reference). */
+    reference?: References;
+    /** `label` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#label). */
+    label?: Label;
+    /** `message` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#message).  */
+    message?: Message;
+    /** `memo` in the [Solana Pay spec](https://github.com/solana-labs/solana-pay/blob/master/SPEC.md#memo). */
+    memo?: Memo;
 }
 
 /**
- * Encode a Solana Pay URL from required and optional components.
+ * Encode a Solana Pay URL.
  *
- * @param {EncodeURLComponents} components
- *
- * @param components.recipient - The address the payment should be made to. It **must** be a native SOL address.
- * @param components.amount - The amount of SOL or SPL token that should be transferred. It is always interpreted to be a decimal number of "user" units. If not provided, the user will be requested to enter an amount by the wallet provider.
- * @param components.splToken - The mint address of an SPL token. If not provided, the URL represents a native SOL transfer.
- * @param components.reference - A public key (or array of public keys) that must be referenced by the transaction. They are the **only** way you'll be able to ensure that the customer has completed this transaction and payment is complete.
- * @param components.label - A label to be used by the wallet provider to identify the transaction; should be the merchant name
- * @param components.message - A message to be used by the wallet provider to identify the transaction; should describe the transaction to the user
- * @param components.memo - Creates an additional instruction for the [Memo Program](https://spl.solana.com/memo)
+ * @param fields Fields to encode in the URL.
  */
-export function encodeURL({ recipient, ...params }: EncodeURLComponents): string {
-    let url = URL_PROTOCOL + encodeURIComponent(recipient.toBase58());
+export function encodeURL(fields: TransactionRequestURLFields | TransferRequestURLFields): URL {
+    return 'link' in fields ? encodeTransactionRequestURL(fields) : encodeTransferRequestURL(fields);
+}
 
-    const encodedParams = encodeURLParams(params);
-    if (encodedParams) {
-        url += '?' + encodedParams;
+function encodeTransactionRequestURL({ link, label, message }: TransactionRequestURLFields): URL {
+    // Remove trailing slashes
+    const pathname = link.search
+        ? encodeURIComponent(String(link).replace(/\/\?/, '?'))
+        : String(link).replace(/\/$/, '');
+    const url = new URL(SOLANA_PROTOCOL + pathname);
+
+    if (label) {
+        url.searchParams.append('label', label);
+    }
+
+    if (message) {
+        url.searchParams.append('message', message);
     }
 
     return url;
 }
 
-function encodeURLParams({ amount, splToken, reference, label, message, memo }: EncodeURLParams): string {
-    const params: [string, string][] = [];
+function encodeTransferRequestURL({
+    recipient,
+    amount,
+    splToken,
+    reference,
+    label,
+    message,
+    memo,
+}: TransferRequestURLFields): URL {
+    const pathname = recipient.toBase58();
+    const url = new URL(SOLANA_PROTOCOL + pathname);
 
     if (amount) {
-        params.push(['amount', amount.toFixed(amount.decimalPlaces())]);
+        url.searchParams.append('amount', amount.toFixed(amount.decimalPlaces() ?? 0));
     }
 
     if (splToken) {
-        params.push(['spl-token', splToken.toBase58()]);
+        url.searchParams.append('spl-token', splToken.toBase58());
     }
 
     if (reference) {
@@ -69,21 +86,21 @@ function encodeURLParams({ amount, splToken, reference, label, message, memo }: 
         }
 
         for (const pubkey of reference) {
-            params.push(['reference', pubkey.toBase58()]);
+            url.searchParams.append('reference', pubkey.toBase58());
         }
     }
 
     if (label) {
-        params.push(['label', label]);
+        url.searchParams.append('label', label);
     }
 
     if (message) {
-        params.push(['message', message]);
+        url.searchParams.append('message', message);
     }
 
     if (memo) {
-        params.push(['memo', memo]);
+        url.searchParams.append('memo', memo);
     }
 
-    return params.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+    return url;
 }
